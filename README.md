@@ -16,4 +16,4 @@ The code for performing the segmentation lies in the [main.py](./main.py) file, 
 
 There are a lot of improvements that could be done to that code. First - and more obvious - is to be able for the user to specify the file on which inference should be performed. 
 
-Part from that, a useful option, would be to be able to perform also classification, in order to be able to track objects on the road.  
+Part from that, a useful option, would be to be able to perform also classification, in order to be able to track objects on the road.
