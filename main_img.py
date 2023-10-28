@@ -5,6 +5,14 @@ from openvino.runtime import Core
 from PIL import Image
 import ov_utils as f
 
+import cv2
+import numpy as np
+
+from ultralytics import YOLO
+
+# Load the YOLOv8 model
+model = YOLO('yolov8n.pt')
+
 #initiate openVino runtime
 core = Core()
 
@@ -37,6 +45,36 @@ frame = f.preprocess(frame_orig, input_layer)
 mask = f.inference(compiled_model, frame, output_layer)
 
 output_frame, output_frame_masked = f.output(mask, frame_orig, colormap, alpha)
+
+#yolo time
+# Run YOLOv8 tracking on the frame, persisting tracks between frames
+# results = model.track(frame, conf=0.3, iou=0.2, show=True)
+yolo_results = model.track(frame_orig)
+
+# print(len(results[0]))
+print('===========================')
+# print(results[0].boxes.data)
+# get the coordinates of the bounding box
+x1 = int(yolo_results[0].boxes.data[0][0].item())
+y1 = int(yolo_results[0].boxes.data[0][1].item())
+x4 = int(yolo_results[0].boxes.data[0][2].item())
+y4 = int(yolo_results[0].boxes.data[0][3].item())
+
+print(f'x1, y1 = {x1, y1}') #top left
+print(f'x2, y2 = {x4, y1}') #top right
+print(f'x3, y3 = {x1, y4}') #bottom left
+print(f'x4, y4 = {x4, y4}') #bottom right
+print('===========================')
+
+# Visualize the results on the frame
+annotated_frame = yolo_results[0].plot()
+
+# Display the annotated frame
+cv2.imshow("YOLOv8_Tracking.jpg", annotated_frame)
+
+# wait until any key is pressed
+cv2.waitKey()
+
 print(output_frame[209][316]) #H, W
 print(output_frame[209][407]) #H, W
 print(output_frame[358][316]) #H, W
