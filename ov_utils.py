@@ -57,7 +57,6 @@ def inference(model, frame, output_layer):
     '''
     result = model(frame)[output_layer]
     mask = np.argmax(result, axis=1)
-
     return mask
 
 def output(mask, frame_orig, colormap, alpha):
@@ -69,6 +68,7 @@ def output(mask, frame_orig, colormap, alpha):
         colormap : The associated colormap for the segmentation
         alpha : The alpha value for the segmentation
     Returns:
+        origanal_img_class : The class of the pixels of the original image
         converted_mask : The mask converted to an RGB image
         image_with_mask : The original image with the converted mask
     '''
