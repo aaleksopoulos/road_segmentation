@@ -4,6 +4,85 @@ import numpy as np
 from openvino.runtime import Core
 from PIL import Image
 import ov_utils as f
+from ultralytics import YOLO
+
+def process_frame(frame_orig, compiled_model, model, input_layer, output_layer, colormap, frame_count, start_time):
+    #segmentation time
+    frame = f.preprocess(frame_orig, input_layer)
+    mask = f.inference(compiled_model, frame, output_layer)
+
+    output_frame, output_frame_masked = f.output(mask, frame_orig, colormap, alpha)
+
+    #yolo time
+    # Run YOLOv8 tracking on the frame, persisting tracks between frames
+    yolo_results = model.track(frame_orig, conf=0.3, iou=0.2, show=False, verbose=False)
+    
+    # print(yolo_results[0][1])
+
+    # print(results[0].boxes.data)
+    for i in range(len(yolo_results[0])):
+
+        # get the coordinates of the bounding box
+        x1 = int(yolo_results[0][i].boxes.data[0][0].item())-1
+        y1 = int(yolo_results[0][i].boxes.data[0][1].item())-1
+        x4 = int(yolo_results[0][i].boxes.data[0][2].item())-1
+        y4 = int(yolo_results[0][i].boxes.data[0][3].item())-1
+
+        # print(f'x1, y1 = {x1, y1}') #top left
+        # print(f'x2, y2 = {x4, y1}') #top right
+        # print(f'x3, y3 = {x1, y4}') #bottom left
+        # print(f'x4, y4 = {x4, y4}') #bottom right
+
+        # Visualize the results on the frame
+        annotated_frame = yolo_results[0][i].plot()
+
+        # Display the annotated frame
+        # cv2.imshow("YOLOv8_Tracking.jpg", annotated_frame)
+        # print('colormap : ',colormap[1])
+
+        # print(output_frame[y1][x1]) #H, W
+        # print(output_frame[y1][x4]) #H, W
+        # print(output_frame[y4][x1]) #H, W
+        # print(output_frame[y4][x4]) #H, W
+        # print(frame_orig.shape)
+        count = 0
+        if np.array_equal(output_frame[y1][x1], colormap[1]):
+            count+=1
+
+        if np.array_equal(output_frame[y1][x4], colormap[1]):
+            count+=1
+
+        if np.array_equal(output_frame[y4][x1], colormap[1]):
+            count+=1
+
+        if np.array_equal(output_frame[y4][x4], colormap[1]):
+            count+=1
+
+        # print('count : ', count)
+        if count>=2:
+            # cv2.drawMarker(output_frame_masked, (x1, y1),(0,0,255), markerType=cv2.MARKER_STAR, markerSize=5, thickness=1, line_type=cv2.LINE_AA)
+            # cv2.drawMarker(output_frame_masked, (x4, y1),(0,0,255), markerType=cv2.MARKER_STAR, markerSize=5, thickness=1, line_type=cv2.LINE_AA)
+            # cv2.drawMarker(output_frame_masked, (x1, y4),(0,0,255), markerType=cv2.MARKER_STAR, markerSize=5, thickness=1, line_type=cv2.LINE_AA)
+            # cv2.drawMarker(output_frame_masked, (x4, y4),(0,0,255), markerType=cv2.MARKER_STAR, markerSize=5, thickness=1, line_type=cv2.LINE_AA)
+            output_frame_masked = cv2.rectangle(output_frame_masked, (x1,y1), (x4, y4), (0,0,255),2)
+
+    cv2.imshow('output', output_frame_masked)
+
+
+    #counting the fps
+
+    elapsed_time = time.time() - start_time
+    fps = frame_count / elapsed_time    
+
+    #update the output image
+    cv2.putText(output_frame_masked, f'FPS: {fps:.2f}', (frame_width - 125, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (38, 0, 255), 1, cv2.LINE_AA)
+    cv2.imshow('output', output_frame_masked)
+    out.write(output_frame_masked)
+    
+
+
+# Load the YOLOv8 model
+detection_model = YOLO('yolov8n.pt')
 
 #initiate openVino runtime
 core = Core()
@@ -48,22 +127,8 @@ start_time = time.time()
 while True:
     ret, frame_orig = cap.read()
     if ret:
-
-        #if indeed there is a frame
-        frame = f.preprocess(frame_orig, input_layer)
-        mask = f.inference(compiled_model, frame, output_layer)
-        output_frame, output_frame_masked = f.output(mask, frame_orig, colormap, alpha)
-
-        #counting the fps
+        process_frame(frame_orig, compiled_model, detection_model, input_layer, output_layer, colormap, frame_count, start_time)
         frame_count += 1
-        elapsed_time = time.time() - start_time
-        fps = frame_count / elapsed_time    
-
-        #update the output image
-        cv2.putText(output_frame_masked, f'FPS: {fps:.2f}', (frame_width - 125, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (38, 0, 255), 1, cv2.LINE_AA)
-        cv2.imshow('output', output_frame_masked)
-        out.write(output_frame_masked)
-        
         if cv2.waitKey(1) & 0xFF == ord('q'):
             cv2.destroyAllWindows()
             break
