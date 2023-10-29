@@ -6,7 +6,7 @@ from PIL import Image
 import ov_utils as f
 from ultralytics import YOLO
 
-def process_frame(frame_orig, compiled_model, model, input_layer, output_layer, colormap, frame_count, start_time):
+def process_frame(frame_orig, compiled_model, model, input_layer, output_layer, colormap, frame_count=None, start_time=None, isVideo=False):
     #segmentation time
     frame = f.preprocess(frame_orig, input_layer)
     mask = f.inference(compiled_model, frame, output_layer)
@@ -66,16 +66,19 @@ def process_frame(frame_orig, compiled_model, model, input_layer, output_layer, 
             # cv2.drawMarker(output_frame_masked, (x4, y4),(0,0,255), markerType=cv2.MARKER_STAR, markerSize=5, thickness=1, line_type=cv2.LINE_AA)
             output_frame_masked = cv2.rectangle(output_frame_masked, (x1,y1), (x4, y4), (0,0,255),2)
 
-    cv2.imshow('output', output_frame_masked)
 
-    #counting the fps
-    elapsed_time = time.time() - start_time
-    fps = frame_count / elapsed_time    
+    if isVideo:
+        #counting the fps
+        elapsed_time = time.time() - start_time
+        fps = frame_count / elapsed_time    
 
-    #update the output image
-    cv2.putText(output_frame_masked, f'FPS: {fps:.2f}', (frame_width - 125, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (38, 0, 255), 1, cv2.LINE_AA)
-    cv2.imshow('output', output_frame_masked)
-    out.write(output_frame_masked)
+        #update the output image
+        cv2.putText(output_frame_masked, f'FPS: {fps:.2f}', (frame_width - 125, 25), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (38, 0, 255), 1, cv2.LINE_AA)
+        cv2.imshow('output', output_frame_masked)
+        out.write(output_frame_masked)
+    else:
+        cv2.imshow('output', output_frame_masked)
+        cv2.waitKey()
     
 
 
@@ -107,38 +110,50 @@ output_layer = compiled_model.output(0)
 print(f"Input layer shape: {input_layer.shape}")
 print(f"Output layer shape: {output_layer.shape}")
 
-# #export the yolo model to openvino
-# detection_model.export(format='openvino')
+# Load the YOLO model in OpenVino format
+ov_detection_model = YOLO('yolov8n_openvino_model/', task='detect')
 
-ov_detection_model = YOLO('yolov8n_openvino_model/')
+#set the input source
+data_source = './input.mp4'
+# data_source = './img1.jpg'
 
-#get the input video
-cap = cv2.VideoCapture('./input.mp4')
-frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-frame_fps = int(cap.get(cv2.CAP_PROP_FPS))
-cap.set(cv2.CAP_PROP_FPS, 30)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 300)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 300)
-fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use 'mp4v' codec for MP4 format
-out = cv2.VideoWriter('ov_output_video.mp4', fourcc, 10.0, (frame_width, frame_height))  # Output file will be in MP4 format
 
-#to count the fps
-frame_count = 0
-start_time = time.time()
+if data_source.endswith('.mp4'):
+    #get the input video
+    cap = cv2.VideoCapture(data_source)
+    frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    frame_height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+    frame_fps = int(cap.get(cv2.CAP_PROP_FPS))
+    cap.set(cv2.CAP_PROP_FPS, frame_fps)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, frame_width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, frame_height)
+    fourcc = cv2.VideoWriter_fourcc(*'mp4v')  # Use 'mp4v' codec for MP4 format
+    out = cv2.VideoWriter('ov_output_video.mp4', fourcc, 10.0, (frame_width, frame_height))  # Output file will be in MP4 format
 
-while True:
-    ret, frame_orig = cap.read()
-    if ret:
-        process_frame(frame_orig, compiled_model, ov_detection_model, input_layer, output_layer, colormap, frame_count, start_time)
-        frame_count += 1
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            cv2.destroyAllWindows()
+    #to count the fps
+    frame_count = 0
+    start_time = time.time()
+
+    while True:
+        ret, frame_orig = cap.read()
+        if ret:
+            process_frame(frame_orig, compiled_model, ov_detection_model, input_layer, output_layer, colormap, frame_count, start_time, True)
+            frame_count += 1
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                cv2.destroyAllWindows()
+                break
+        else:
             break
-    else:
-        break
 
-#clean up the mess
-cap.release()
-out.release()
-cv2.destroyAllWindows()
+    #clean up the mess
+    cap.release()
+    out.release()
+    cv2.destroyAllWindows()
+else:
+    #get the input image
+    frame_orig = cv2.imread(data_source)
+
+    process_frame(frame_orig, compiled_model, ov_detection_model, input_layer, output_layer, colormap)
+
+    # release resources
+    cv2.destroyAllWindows()
