@@ -114,8 +114,8 @@ print(f"Output layer shape: {output_layer.shape}")
 ov_detection_model = YOLO('yolov8n_openvino_model/', task='detect')
 
 #set the input source
-data_source = './input.mp4'
-# data_source = './img1.jpg'
+# data_source = './input.mp4'
+data_source = './input_data/img7.jpg'
 
 
 if data_source.endswith('.mp4'):
